@@ -1,0 +1,4 @@
+bindings:
+- members:
+  - serviceAccount:your-service-account@your-project.iam.gserviceaccount.com
+  role: roles/run.invoker
