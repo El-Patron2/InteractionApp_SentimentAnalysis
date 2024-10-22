@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConversAI - Your Intelligent Companion</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #0d0d0d;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 20px;
+            margin: 0;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background-color: #1a1a1a;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(255, 255, 255, 0.1);
+        }
+        
+        .section {
+            background-color: #242424;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            color: #4CAF50;
+            font-size: 1.8em;
+            text-align: center;
+        }
+        
+        button {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        input[type="file"], textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: none;
+        }
+        
+        #recordingStatus, .result, .sentiment-info {
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        .sentiment-info {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+       .sentiment-positive {
+           background-color: rgba(76,175,80,.2);
+           color:#81c784;}
+       
+       .sentiment-negative {
+           background-color :rgba(244 ,67 ,54 ,.2);
+           color :#e57373;}
+       
+       .sentiment-neutral {
+           background-color :rgba(158 ,158 ,158 ,.2);
+           color :#bdbdbd;}
+       
+       .file-path a {
+           color:#4CAF50; /* Link color */
+           text-decoration:none; /* Remove underline */
+       }
+
+       .file-path a:hover {
+           text-decoration:bold; /* Bold on hover */
+       }
+
+       .footer {
+           text-align:center; 
+           margin-top :20px; 
+           font-size :0.8em; 
+           color :#aaa; 
+           padding-top :0.5em; 
+           border-top :0.5px solid #444;}
+       
+   </style>
+</head>
+<body>
+<h1>ConversAI - Your Intelligent Companion</h1>
+
+<div class="container">
+<div class="section">
+<h2>Voice Recording</h2>
+<button id="startRecording">Start Recording</button>
+<button id="stopRecording" disabled>Stop Recording</button>
+<div id="recordingStatus"></div>
+<div id="transcriptionResult" class="result"></div>
+<div id="recordingSentiment" class="sentiment-info"></div>
+<div id="recordingFilePath" class="file-path"></div>
+</div>
+
+<div class="section">
+<h2>Text to Speech</h2>
+<textarea id="textToSpeech" rows="4" placeholder="Enter text to convert to speech"></textarea>
+<button id="generateSpeech">Generate Speech</button>
+<div id="textSentiment" class="sentiment-info"></div>
+<div id="speechFilePath" class="file-path"></div>
+<audio id="audioPlayer" controls style="display:none; width:auto;"></audio>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+<script>
+let mediaRecorder;
+let audioChunks = [];
+
+document.getElementById('startRecording').addEventListener('click', startRecording);
+document.getElementById('stopRecording').addEventListener('click', stopRecording);
+document.getElementById('generateSpeech').addEventListener('click', generateSpeech);
+
+async function startRecording() {
+try {
+const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+mediaRecorder = new MediaRecorder(stream);
+mediaRecorder.ondataavailable = event => {
+audioChunks.push(event.data);
+};
+mediaRecorder.onstop = handleRecordingStop;
+
+mediaRecorder.start();
+document.getElementById('startRecording').disabled=true;
+document.getElementById('stopRecording').disabled=false;
+document.getElementById('recordingStatus').textContent='Recording...';
+} catch (error) {
+console.error('Error starting recording:', error);
+alert('Failed to start recording. Please check your microphone permissions.');
+}
+}
+
+function stopRecording() {
+mediaRecorder.stop();
+document.getElementById('startRecording').disabled=false;
+document.getElementById('stopRecording').disabled=true;
+document.getElementById('recordingStatus').textContent='Recording stopped.';
+}
+
+async function handleRecordingStop() {
+const audioBlob = new Blob(audioChunks,{ type:'audio/webm' });
+audioChunks=[];
+
+if (!audioBlob.size) {
+console.error('Audio blob is empty.');
+document.getElementById('recordingStatus').textContent='No audio recorded.';
+return;}
+const formData=new FormData();
+formData.append('audio',audioBlob,'recording.webm');
+
+try {
+const response=await axios.post('/transcribe',formData,{
+headers:{'Content-Type':'multipart/form-data'}
+});
+
+document.getElementById('transcriptionResult').textContent=response.data.transcription ||'No transcription available.';
+displaySentiment(response.data.sentiment,'recordingSentiment');
+const fileName=response.data.saved_filename.split('/').pop();
+document.getElementById('recordingFilePath').innerHTML=`File saved:<a href="/saved_files/${fileName}.txt" target="_blank">${fileName}.txt</a>`;
+
+const audioURL=URL.createObjectURL(audioBlob);
+const audioPlayer=new Audio(audioURL);
+audioPlayer.play();
+} catch (error) {
+console.error('Error:', error);
+document.getElementById('transcriptionResult').textContent='Error during transcription.';
+document.getElementById('recordingSentiment').textContent='';
+document.getElementById('recordingFilePath').innerHTML='';
+}
+}
+
+async function generateSpeech() {
+const text=document.getElementById('textToSpeech').value.trim();
+if (!text) {
+alert('Please enter text to convert to speech.');
+return;}
+
+try {
+const response=await axios.post('/generate-speech',{ text },{ responseType:'blob' });
+
+const audioBlob=new Blob([response.data],{ type:'audio/mpeg' });
+const audioURL=URL.createObjectURL(audioBlob);
+
+const audioPlayer=document.getElementById('audioPlayer');
+audioPlayer.src=audioURL;
+
+const sentimentHeader=response.headers['x-sentiment'];
+const sentiment=sentimentHeader ? JSON.parse(sentimentHeader) : null; 
+displaySentiment(sentiment,'textSentiment');
+
+const fileName=response.headers['x-file-name'];
+document.getElementById('speechFilePath').innerHTML=`Files saved:<br>Audio:<a href="/saved_files/${fileName}.mp3" target="_blank">${fileName}.mp3</a><br>Text:<a href="/saved_files/${fileName}.txt" target="_blank">${fileName}.txt</a>`;
+} catch (error) {
+console.error('Error:', error);
+alert('Error generating speech.');
+document.getElementById('textSentiment').textContent='';
+document.getElementById('speechFilePath').innerHTML='';
+document.getElementById('audioPlayer').style.display='none';
+}
+}
+
+function displaySentiment(sentiment, elementId) {
+const element=document.getElementById(elementId);
+if (!sentiment) {
+element.textContent='';
+return;}
+
+element.className=`sentiment-info sentiment-${sentiment.category}`;
+element.innerHTML=`<strong>Sentiment:</strong> ${sentiment.category}<br><strong>Score:</strong> ${sentiment.score.toFixed(2)}<br><strong>Magnitude:</strong> ${sentiment.magnitude.toFixed(2)}`;
+}
+</script>
+
+<div class="footer">
+&copy;2024 ConversAI.All rights reserved.
+</div>
+</body>
+</html>
