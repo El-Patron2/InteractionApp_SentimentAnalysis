@@ -11,7 +11,3 @@ APIs Used:
 Google Cloud Speech-to-Text for converting speech to text.
 Google Cloud Text-to-Speech for generating speech from text.
 Google Cloud Natural Language for analyzing sentiment.
-Deployment
-The application is successfully deployed on Google App Engine:
-Service URL: https://voiceinteractionapp-436602.uc.r.appspot.com
-This deployment allows for easy scaling and management of the application while providing seamless integration with other Google Cloud services.
